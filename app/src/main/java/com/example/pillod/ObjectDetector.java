@@ -108,10 +108,11 @@ public class ObjectDetector {
                 float height = outputArray[0][3][boxIndex];
                 BoundingBox bbox = convertYOLOToBoundingBox(centerX, centerY, width, height, bitmap.getWidth(), bitmap.getHeight());
                 // PCH : 이미지를 Crop하여 넣었을때 좌표 보정 처리하기 위한 방법
-                bbox.setLeft(bbox.getLeft() + inputBox.getLeft());
-                bbox.setRight(bbox.getRight() + inputBox.getLeft());
-                bbox.setTop(bbox.getTop() + inputBox.getTop());
-                bbox.setBottom(bbox.getBottom() + inputBox.getTop());
+                bbox.setLeft(bbox.getLeft() > 0 ? bbox.getLeft() + inputBox.getLeft() : 0);
+                bbox.setRight(bbox.getRight() < bitmap.getWidth() ? bbox.getRight() + inputBox.getLeft() : bitmap.getWidth());
+                bbox.setTop(bbox.getTop() > 0 ? bbox.getTop() + inputBox.getTop() : 0);
+                bbox.setBottom(bbox.getBottom() < bitmap.getHeight()? bbox.getBottom() + inputBox.getTop() : bitmap.getHeight());
+
                 detectionResults.add(new DetectionResult(classId, confidence, bbox));
             }
         }

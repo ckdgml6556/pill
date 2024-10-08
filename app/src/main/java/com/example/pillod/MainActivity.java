@@ -34,7 +34,7 @@ public class MainActivity extends AppCompatActivity {
 
         resultView = findViewById(R.id.detectionResultView);
 
-        Bitmap bitmap = BitmapFactory.decodeResource(getResources(), R.drawable.test);
+        Bitmap bitmap = BitmapFactory.decodeResource(getResources(), R.drawable.test3);
 
         detect(bitmap);
     }
@@ -88,14 +88,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private List<DetectionResult> processStage2(ObjectDetector detector, Bitmap bitmap, BoundingBox cropBox) {
-        int cropStartX =(int)cropBox.getLeft();
+        int cropStartX = (int)cropBox.getLeft();
         int cropStartY = (int)cropBox.getTop();
-        int cropWidth = (int)(cropBox.getRight()-cropBox.getLeft());
+        int cropWidth =  (int)(cropBox.getRight()-cropBox.getLeft());
         int cropHeight = (int)(cropBox.getBottom()-cropBox.getTop());
-        if(cropStartX + cropWidth >= bitmap.getWidth())
-            cropWidth = bitmap.getWidth() - cropStartX;
-        if(cropStartY + cropHeight >= bitmap.getWidth())
-            cropHeight = bitmap.getHeight() - cropStartY;
         Bitmap cropBitmap = Bitmap.createBitmap(bitmap, cropStartX, cropStartY, cropWidth, cropHeight);
         return detector.getResults(cropBitmap, IOU_THRESHOLD, CONF_THRESHOLD, cropBox);
     }
