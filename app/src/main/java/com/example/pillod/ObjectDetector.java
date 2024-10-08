@@ -35,14 +35,8 @@ public class ObjectDetector {
     public static final int inputWidth = 640;
     public static final int inputHeight = 640;
 
-    public static final int CLASS_COUNT = 1;
-
-    public static final Map<String, String> CLASSES = new HashMap<String, String>() {
-        {
-            put("0", "pill");
-            put("1", "plate");
-        }
-    };
+    public static int CLASS_PILL = 0;
+    public static int CLASS_PLATE = 1;
 
     private Interpreter interpreter;
     private int numBoxes = 8400;
@@ -75,7 +69,7 @@ public class ObjectDetector {
         }
     }
 
-    public List<DetectionResult> detectObjects(Bitmap bitmap, InputDataType inputDataType) {
+    public List<DetectionResult> detectObjects(Bitmap bitmap, InputDataType inputDataType, BoundingBox inputBox) {
         Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmap, inputWidth, inputHeight, true);
         ByteBuffer inputArray;
 
@@ -97,19 +91,27 @@ public class ObjectDetector {
         for (int boxIndex = 0; boxIndex < numBoxes; boxIndex++) {
             float confidence = 0.0f;
             int classId = 0;
-            for (int i = 0; i < CLASS_COUNT; i++) {
-                if (confidence < outputArray[0][i][boxIndex]) {
-                    confidence = outputArray[0][4 + i][boxIndex];
+            for (int i = 0; i < numClasses; i++) {
+                // PCH : Bug 수정
+                float classConfidence = outputArray[0][4 + i][boxIndex];
+                if (confidence < classConfidence) {
+                    confidence = classConfidence;
                     classId = i;
                 }
             }
 
+            // PCH : Bug수정
             if (confidence > CONFIDENCE_THRESHOLD) {
-                float centerX = outputArray[0][CLASS_COUNT - 1][boxIndex];
-                float centerY = outputArray[0][CLASS_COUNT][boxIndex];
-                float width = outputArray[0][CLASS_COUNT + 1][boxIndex];
-                float height = outputArray[0][CLASS_COUNT + 2][boxIndex];
+                float centerX = outputArray[0][0][boxIndex];
+                float centerY = outputArray[0][1][boxIndex];
+                float width = outputArray[0][2][boxIndex];
+                float height = outputArray[0][3][boxIndex];
                 BoundingBox bbox = convertYOLOToBoundingBox(centerX, centerY, width, height, bitmap.getWidth(), bitmap.getHeight());
+                // PCH : 이미지를 Crop하여 넣었을때 좌표 보정 처리하기 위한 방법
+                bbox.setLeft(bbox.getLeft() + inputBox.getLeft());
+                bbox.setRight(bbox.getRight() + inputBox.getLeft());
+                bbox.setTop(bbox.getTop() + inputBox.getTop());
+                bbox.setBottom(bbox.getBottom() + inputBox.getTop());
                 detectionResults.add(new DetectionResult(classId, confidence, bbox));
             }
         }
@@ -169,27 +171,43 @@ public class ObjectDetector {
     }
 
     public List<DetectionResult> nms(List<DetectionResult> detections, float iouThreshold, float confidenceThreshold) {
-        List<DetectionResult> selectedDetections = new ArrayList<>();
-
-        List<DetectionResult> filteredDetections = new ArrayList<>();
+        // 클래스별로 DetectionResult를 분류
+        Map<Integer, List<DetectionResult>> classwiseDetections = new HashMap<>();
+        int count = 0;
         for (DetectionResult detection : detections) {
             if (detection.getConfidence() >= confidenceThreshold) {
-                filteredDetections.add(detection);
+                int classId = detection.getClassId();  // 클래스 ID를 가져옴
+                classwiseDetections.putIfAbsent(classId, new ArrayList<>());
+                classwiseDetections.get(classId).add(detection);
             }
         }
 
-        filteredDetections.sort((d1, d2) -> Float.compare(d2.getConfidence(), d1.getConfidence()));
+        // 각 클래스별로 NMS 수행
+        List<DetectionResult> selectedDetections = new ArrayList<>();
+        for (List<DetectionResult> classDetections : classwiseDetections.values()) {
+            selectedDetections.addAll(performNMSForSingleClass(classDetections, iouThreshold));
+        }
 
-        boolean[] isSuppressed = new boolean[filteredDetections.size()];
+        return selectedDetections;
+    }
 
-        for (int i = 0; i < filteredDetections.size(); i++) {
+    private List<DetectionResult> performNMSForSingleClass(List<DetectionResult> detections, float iouThreshold) {
+        List<DetectionResult> selectedDetections = new ArrayList<>();
+
+        // 신뢰도에 따라 내림차순으로 정렬
+        detections.sort((d1, d2) -> Float.compare(d2.getConfidence(), d1.getConfidence()));
+
+        boolean[] isSuppressed = new boolean[detections.size()];
+
+        // NMS 수행
+        for (int i = 0; i < detections.size(); i++) {
             if (!isSuppressed[i]) {
-                BoundingBox boxA = filteredDetections.get(i).getBoundingBox();
-                selectedDetections.add(filteredDetections.get(i));
+                BoundingBox boxA = detections.get(i).getBoundingBox();
+                selectedDetections.add(detections.get(i));
 
-                for (int j = i + 1; j < filteredDetections.size(); j++) {
+                for (int j = i + 1; j < detections.size(); j++) {
                     if (!isSuppressed[j]) {
-                        BoundingBox boxB = filteredDetections.get(j).getBoundingBox();
+                        BoundingBox boxB = detections.get(j).getBoundingBox();
                         float iou = calculateIOU(boxA, boxB);
 
                         if (iou >= iouThreshold) {
@@ -217,8 +235,11 @@ public class ObjectDetector {
         return intersectionArea / (areaA + areaB - intersectionArea);
     }
 
-    public List<DetectionResult> getDetectionResult(Bitmap bitmap,  float iouThreshold, float confidenceThreshold){
-        return nms(detectObjects(bitmap, InputDataType.FLOAT32),iouThreshold, confidenceThreshold);
+    public List<DetectionResult>  getResults(Bitmap bitmap, float iouThreshold, float confidenceThreshold, BoundingBox bbox){
+        return nms(detectObjects(bitmap, InputDataType.FLOAT32, bbox),iouThreshold, confidenceThreshold);
     }
 
+    public int getClassNum(){
+        return numClasses;
+    }
 }

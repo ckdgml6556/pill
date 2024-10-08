@@ -12,7 +12,7 @@
 *.ctxt
 
 #tflite model files
-*.tflite
+app/src/main/assets
 
 # Mobile Tools for Java (J2ME)
 .mtj.tmp/
