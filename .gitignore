@@ -11,6 +11,9 @@
 # BlueJ files
 *.ctxt
 
+#tflite model files
+*.tflite
+
 # Mobile Tools for Java (J2ME)
 .mtj.tmp/
 
