@@ -42,6 +42,7 @@ public class ObjectDetector {
     private int numBoxes = 8400;
     private int numClasses = 2;
     private int numCoordsPerBox = 4 + numClasses;
+    private int limitDetectionNum = 1000;
     private int bufferSize;
     private ByteBuffer byteBuffer;
 
@@ -89,10 +90,13 @@ public class ObjectDetector {
 
         List<DetectionResult> detectionResults = new ArrayList<>();
         for (int boxIndex = 0; boxIndex < numBoxes; boxIndex++) {
+            if (detectionResults.size() >= limitDetectionNum) { // 검출 개수 제한 추가
+                break;
+            }
+
             float confidence = 0.0f;
             int classId = 0;
             for (int i = 0; i < numClasses; i++) {
-                // PCH : Bug 수정
                 float classConfidence = outputArray[0][4 + i][boxIndex];
                 if (confidence < classConfidence) {
                     confidence = classConfidence;
