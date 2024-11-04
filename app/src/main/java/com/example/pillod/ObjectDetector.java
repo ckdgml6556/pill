@@ -90,10 +90,6 @@ public class ObjectDetector {
 
         List<DetectionResult> detectionResults = new ArrayList<>();
         for (int boxIndex = 0; boxIndex < numBoxes; boxIndex++) {
-            if (detectionResults.size() >= limitDetectionNum) { // 검출 개수 제한 추가
-                break;
-            }
-
             float confidence = 0.0f;
             int classId = 0;
             for (int i = 0; i < numClasses; i++) {
@@ -178,19 +174,28 @@ public class ObjectDetector {
     public List<DetectionResult> nms(List<DetectionResult> detections, float iouThreshold, float confidenceThreshold) {
         // 클래스별로 DetectionResult를 분류
         Map<Integer, List<DetectionResult>> classwiseDetections = new HashMap<>();
-        int count = 0;
         for (DetectionResult detection : detections) {
             if (detection.getConfidence() >= confidenceThreshold) {
-                int classId = detection.getClassId();  // 클래스 ID를 가져옴
+                int classId = detection.getClassId();
                 classwiseDetections.putIfAbsent(classId, new ArrayList<>());
                 classwiseDetections.get(classId).add(detection);
             }
         }
 
-        // 각 클래스별로 NMS 수행
+        // PCH : 갯수 제한 알고리즘
         List<DetectionResult> selectedDetections = new ArrayList<>();
         for (List<DetectionResult> classDetections : classwiseDetections.values()) {
-            selectedDetections.addAll(performNMSForSingleClass(classDetections, iouThreshold));
+            // 클래스별로 NMS 수행 결과를 가져옴
+            List<DetectionResult> nmsResults = performNMSForSingleClass(classDetections, iouThreshold);
+
+            // 남은 저장 가능 개수를 계산하고 그만큼만 추가
+            int remainingCapacity = limitDetectionNum - selectedDetections.size();
+            if (remainingCapacity <= 0) {
+                break;
+            }
+
+            // 남은 개수만큼만 NMS 결과에서 추가
+            selectedDetections.addAll(nmsResults.subList(0, Math.min(remainingCapacity, nmsResults.size())));
         }
 
         return selectedDetections;
